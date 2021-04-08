@@ -3,7 +3,7 @@ module github.com/bensema/gusher
 go 1.15
 
 require (
-	github.com/bensema/redisocket v0.0.0-20210408070755-b1c8a56811c4
+	github.com/bensema/redisocket v0.0.0-20210408115805-5b8bcb237bad
 	github.com/buger/jsonparser v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.6.3

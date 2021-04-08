@@ -24,6 +24,7 @@ var (
 func master(c *cli.Context) {
 
 	mc := getMasterConfig(c)
+	listenChannelPrefix = mc.Name + "."
 
 	b, err := ioutil.ReadFile(mc.PublicKeyLocation)
 	if err != nil {

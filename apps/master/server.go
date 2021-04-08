@@ -56,6 +56,10 @@ func init() {
 func getMasterConfig(c *cli.Context) (mc MasterConfig) {
 	envInit(c)
 	mc = MasterConfig{}
+	mc.Name = os.Getenv("GUSHER_NAME")
+	if mc.Name == "" {
+		logger.Fatal("empty env GUSHER_NAME")
+	}
 	mc.PublicKeyLocation = os.Getenv("GUSHER_PUBLIC_PEM_FILE")
 	if mc.PublicKeyLocation == "" {
 		logger.Fatal("empty env GUSHER_PUBLIC_PEM_FILE")

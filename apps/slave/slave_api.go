@@ -68,10 +68,10 @@ func WsConnect(c *gin.Context, rHub *redisocket.Hub) {
 		}
 		switch res.cmdType {
 		case "SUB":
-			s.On(res.data, res.handler)
+			s.Sub(res.data)
 			s.ActivityTime()
 		case "UNSUB":
-			s.Off(res.data)
+			s.UnSub(res.data)
 			s.ActivityTime()
 		case "PING":
 			s.ActivityTime()

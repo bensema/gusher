@@ -56,13 +56,16 @@ func init() {
 	listenChannelPrefix = name + "."
 	/*logger init*/
 	logger = GetLogger()
-	logger.SetFormatter(&logrus.TextFormatter{})
 }
 func getSlaveConfig(c *cli.Context) (sc SlaveConfig) {
 	sc = SlaveConfig{}
 	envInit(c)
 
 	//common redis
+	sc.Name = os.Getenv("GUSHER_NAME")
+	if sc.Name == "" {
+		logger.Fatal("empty env GUSHER_NAME")
+	}
 	sc.RedisAddr = os.Getenv("GUSHER_REDIS_ADDR")
 	if sc.RedisAddr == "" {
 		logger.Fatal("empty env GUSHER_REDIS_ADDR")

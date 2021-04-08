@@ -3,6 +3,7 @@ package main
 import "time"
 
 type MasterConfig struct {
+	Name              string
 	LogFormatter      string
 	RedisAddr         string
 	RedisDb           int

@@ -17,6 +17,7 @@ import (
 func slave(c *cli.Context) {
 
 	sc := getSlaveConfig(c)
+	listenChannelPrefix = sc.Name + "."
 	/*redis init*/
 	rpool := redis.NewPool(func() (redis.Conn, error) {
 		c, err := redis.Dial("tcp", sc.RedisAddr)

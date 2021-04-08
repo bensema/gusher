@@ -3,6 +3,7 @@ package main
 import "time"
 
 type SlaveConfig struct {
+	Name              string
 	LogFormatter      string
 	LogInterval       time.Duration
 	ScanInterval      time.Duration
