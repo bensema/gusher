@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/bensema/redisocket"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 

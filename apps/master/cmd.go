@@ -1,27 +1,23 @@
 package main
 
 import (
+	"github.com/bensema/redisocket"
+	"github.com/gin-gonic/gin"
 	"html/template"
 	"io/ioutil"
-	"net"
-	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	"syscall"
-	"time"
-
-	_ "net/http/pprof"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/gomodule/redigo/redis"
-	"github.com/gorilla/mux"
-	"github.com/sirupsen/logrus"
-	"github.com/syhlion/greq"
-	"github.com/syhlion/httplog"
-	"github.com/syhlion/requestwork.v2"
 	"github.com/urfave/cli"
-	"github.com/urfave/negroni"
+)
+
+var (
+	rsender *redisocket.Sender
 )
 
 // master server
@@ -59,48 +55,34 @@ func master(c *cli.Context) {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	rsender := redisocket.NewSender(rpool)
+	rsender = redisocket.NewSender(rpool)
 
-	/*api start*/
-	apiListener, err := net.Listen("tcp", mc.ApiListen)
-	if err != nil {
-		logger.Fatal(err)
-	}
-	r := mux.NewRouter()
+	engine := gin.Default()
+	e := engine.Group("/")
+	//e.POST("/push/socket/:app_key/:socket_id", PushToSocket)
+	//e.POST("/push/user/:app_key/:user_id", PushToUser)
+	e.POST("/push/:app_key/:channel/:event", PushMessage)
+	e.POST("/push_batch/:app_key", PushBatchMessage)
+	e.POST("/push/:app_key", PushMessageByPattern)
+	e.POST("/reload/channel/user/:app_key/:user_id", ReloadUserChannels)
+	e.POST("/add/channel/user/:app_key/:user_id", AddUserChannels)
+	e.GET("/:app_key/channels", GetAllChannel)
+	e.GET("/:app_key/channels/count", GetAllChannelCount)
+	e.GET("/:app_key/online/bychannel/:channel", GetOnlineByChannel)
+	e.GET("/:app_key/online/bychannel/:channel/count", GetOnlineCountByChannel)
+	e.GET("/:app_key/online", GetOnline)
+	e.GET("/:app_key/online/count", GetOnlineCount)
+	//e.GET("/ping", Ping)
 
-	sub := r.PathPrefix(mc.ApiPrefix).Subrouter()
-	sub.HandleFunc("/push/socket/{app_key}/{socket_id}", PushToSocket(rsender)).Methods("POST")
-	sub.HandleFunc("/push/user/{app_key}/{user_id}", PushToUser(rsender)).Methods("POST")
-	sub.HandleFunc("/push/{app_key}/{channel}/{event}", PushMessage(rsender)).Methods("POST")
-	sub.HandleFunc("/push_batch/{app_key}", PushBatchMessage(rsender)).Methods("POST")
-	sub.HandleFunc("/push/{app_key}", PushMessageByPattern(rsender)).Methods("POST")
-	sub.HandleFunc("/reload/channel/user/{app_key}/{user_id}", ReloadUserChannels(rsender)).Methods("POST")
-	sub.HandleFunc("/add/channel/user/{app_key}/{user_id}", AddUserChannels(rsender)).Methods("POST")
-	sub.HandleFunc("/{app_key}/channels", GetAllChannel(rsender)).Methods("GET")
-	sub.HandleFunc("/{app_key}/channels/count", GetAllChannelCount(rsender)).Methods("GET")
-	sub.HandleFunc("/{app_key}/online/bychannel/{channel}", GetOnlineByChannel(rsender)).Methods("GET")
-	sub.HandleFunc("/{app_key}/online/bychannel/{channel}/count", GetOnlineCountByChannel(rsender)).Methods("GET")
-	sub.HandleFunc("/{app_key}/online", GetOnline(rsender)).Methods("GET")
-	sub.HandleFunc("/{app_key}/online/count", GetOnlineCount(rsender)).Methods("GET")
-	sub.HandleFunc("/ping", Ping()).Methods("GET")
 	if rsaKeyErr == nil {
-		sub.HandleFunc("/decode", DecodeJWT(public_pem)).Methods("POST")
+		e.POST("/decode", func(c *gin.Context) {
+			DecodeJWT(c, public_pem)
+		})
 	}
-	n := negroni.New()
-	n.Use(httplog.NewLogger(true))
-	n.UseHandler(r)
 	serverError := make(chan error, 1)
-	server := http.Server{
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 60 * time.Second,
-		Handler:      n,
-	}
+
 	go func() {
-		err := server.Serve(apiListener)
-		serverError <- err
-	}()
-	go func() {
-		logger.Error(http.ListenAndServe(":7799", nil))
+		logger.Error(engine.Run(mc.ApiListen))
 	}()
 
 	// block and listen syscall
@@ -116,6 +98,7 @@ func master(c *cli.Context) {
 	}
 
 }
+
 func runtimeStats() (m *runtime.MemStats) {
 	m = &runtime.MemStats{}
 

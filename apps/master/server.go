@@ -52,6 +52,7 @@ func init() {
 	/*logger init*/
 	logger = GetLogger()
 }
+
 func getMasterConfig(c *cli.Context) (mc MasterConfig) {
 	envInit(c)
 	mc = MasterConfig{}
@@ -128,7 +129,7 @@ func main() {
 	gusher.Name = name
 	gusher.Author = "Scott (syhlion)"
 	gusher.Usage = "very simple to use http request push message to websocket and very easy to scale"
-	gusher.UsageText = "gusher master [-e envfile] [-d]"
+	gusher.UsageText = "gusher.cluster master [-e envfile] [-d]"
 	gusher.Version = version
 	gusher.Compiled = time.Now()
 	gusher.Commands = []cli.Command{
