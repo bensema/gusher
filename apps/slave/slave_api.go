@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	"github.com/gomodule/redigo/redis"
 )
 
 var DefaultSubHandler = func(channel string, p *internal.Payload) (err error) {
@@ -21,7 +20,7 @@ type commandResponse struct {
 	cmdType   string
 	handler   func(string, *internal.Payload) (err error)
 	msg       []byte
-	data      string
+	data      string   // channel 名
 	multiData []string //multi sub use
 }
 
@@ -40,14 +39,14 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 		return
 	}
 	defer s.Close()
-	//d := &ConnectionCommand{}
-	//d.Event = ConnectionEstablished
-	//d.Data = map[string]interface{}{
-	//	"socket_id":        s.SocketId(),
-	//	"activity_timeout": 120,
-	//}
-	//_d, _ := json.Marshal(d)
-	//s.Send(_d)
+	d := &ConnectionCommand{}
+	d.Event = ConnectionEstablished
+	d.Data = map[string]interface{}{
+		"socket_id":        s.SocketId(),
+		"activity_timeout": 120,
+	}
+	_d, _ := json.Marshal(d)
+	s.Send(_d)
 	logger.WithField("socket_id", s.SocketId()).Info("connect")
 	s.Listen(func(data []byte) (b []byte, err error) {
 		h, err := CommandRouter(data)
@@ -86,6 +85,117 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 	return
 
 }
+
+func UnSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
+	channel, err := jsonparser.GetString(data, "channel")
+	if err != nil {
+		return
+	}
+	exist := false
+	for _, ch := range auth.Channels {
+		//新增萬用字元  如果找到這個 任何頻道皆可訂閱
+		if ch == "*" {
+			exist = true
+			break
+		}
+		ech := regexp.QuoteMeta(ch)
+		rch := strings.Replace(ech, `\*`, ".+", -1)
+		r := regexp.MustCompile("^" + rch + "$")
+
+		if r.MatchString(channel) {
+			exist = true
+			break
+		}
+	}
+	msg = &commandResponse{
+		cmdType: "UNSUB",
+	}
+	command := &ChannelCommand{}
+	var reply []byte
+	//反訂閱處理
+	if exist {
+		msg.data = channel
+		command.Event = UnSubscribeReplySucceeded
+		command.SocketId = socketId
+		command.Data.Channel = channel
+		reply, err = json.Marshal(command)
+		if err != nil {
+			return
+		}
+		msg.msg = reply
+	} else {
+		msg.data = channel
+
+		//TODO 需重構 先不讓他進入訂閱模式
+		msg.cmdType = ""
+		command.Event = UnSubscribeReplyError
+		command.SocketId = socketId
+		command.Data.Channel = channel
+		reply, err = json.Marshal(command)
+		if err != nil {
+			return
+		}
+		msg.msg = reply
+	}
+	return
+}
+
+func SubscribeCommand(appKey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
+	fmt.Println(string(data))
+	channel, err := jsonparser.GetString(data, "channel")
+	if err != nil {
+		return
+	}
+	msg = &commandResponse{
+		handler: DefaultSubHandler,
+		cmdType: "SUB",
+	}
+	command := &ChannelCommand{}
+	//exist := false
+	channelOk := false
+	var reply []byte
+	// Channel names should only include lower and uppercase letters, numbers and the following punctuation _ - = @ , . ;
+	// As an example this is a valid channel name:
+	// foo-bar_1234@=,.;
+	// Public channels | Private channels private-
+	r := regexp.MustCompile("^[\\w-=,.;@]+$")
+	if r.MatchString(channel) {
+		//exist = true
+		channelOk = true
+	}
+	fmt.Println("channelOk:", channelOk)
+	if channelOk {
+		switch channelType(channel) {
+		case PublicChannel:
+			msg.data = channel
+			command.SocketId = socketId
+			command.Event = SubscribeReplySucceeded
+			command.Data.Channel = channel
+			reply, err = json.Marshal(command)
+			if err != nil {
+				return
+			}
+			msg.msg = reply
+		case PrivateChannel:
+			// todo 校验auth
+
+		}
+
+	} else {
+		msg.cmdType = ""
+		command.SocketId = socketId
+		command.Event = SubscribeReplyError
+		command.Data.Channel = channel
+		reply, err = json.Marshal(command)
+		if err != nil {
+			return
+		}
+		msg.msg = reply
+	}
+
+	return
+}
+
 func MultiSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 
 	multiChannel := make([]string, 0)
@@ -153,84 +263,6 @@ func MultiSubscribeCommand(appkey string, auth internal.Auth, data []byte, socke
 	return
 }
 
-func SubscribeCommand(appKey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-	fmt.Println(string(data))
-	channel, err := jsonparser.GetString(data, "channel")
-	if err != nil {
-		return
-	}
-	msg = &commandResponse{
-		handler: DefaultSubHandler,
-		cmdType: "SUB",
-	}
-	command := &ChannelCommand{}
-	//exist := false
-	channelOk := false
-	var reply []byte
-	// Channel names should only include lower and uppercase letters, numbers and the following punctuation _ - = @ , . ;
-	// As an example this is a valid channel name:
-	// foo-bar_1234@=,.;
-	// Public channels | Private channels private-
-	r := regexp.MustCompile("^[\\w-=,.;]+$")
-	if r.MatchString(channel) {
-		//exist = true
-		channelOk = true
-	}
-	fmt.Println("channelOk:", channelOk)
-	if channelOk {
-		switch channelType(channel) {
-		case PublicChannel:
-			msg.data = channel
-			command.SocketId = socketId
-			command.Event = SubscribeReplySucceeded
-			command.Data.Channel = channel
-			reply, err = json.Marshal(command)
-			if err != nil {
-				return
-			}
-			msg.msg = reply
-		case PrivateChannel:
-			// todo 校验auth
-
-		}
-
-	} else {
-		msg.cmdType = ""
-		command.SocketId = socketId
-		command.Event = SubscribeReplyError
-		command.Data.Channel = channel
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		msg.msg = reply
-	}
-
-	return
-}
-func QueryChannelCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-	msg = &commandResponse{
-		handler: DefaultSubHandler,
-		cmdType: "QUERYCHANNEL",
-	}
-
-	command := &QueryChannelResponse{}
-	command.Event = QueryChannelReplySucceeded
-	command.SocketId = socketId
-	command.Data = struct {
-		Channels []string `json:"channels"`
-	}{
-		Channels: auth.Channels,
-	}
-
-	reply, err := json.Marshal(command)
-	if err != nil {
-		return
-	}
-	msg.msg = reply
-	return
-}
-
 func PingPongCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	msg = &commandResponse{
 		handler: DefaultSubHandler,
@@ -248,122 +280,6 @@ func PingPongCommand(appkey string, auth internal.Auth, data []byte, socketId st
 		return
 	}
 	msg.msg = reply
-	return
-}
-func Remote(pool *redis.Pool) func(string, internal.Auth, []byte, string, bool) (msg *commandResponse, err error) {
-	return func(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-
-		remote, err := jsonparser.GetString(data, "remote")
-		if err != nil {
-			return
-		}
-		uid, err := jsonparser.GetString(data, "uid")
-		if err != nil {
-			return
-		}
-		payload, _, _, err := jsonparser.Get(data, "payload")
-		if err != nil {
-			return
-		}
-		p := JsonCheck(string(payload))
-		msg = &commandResponse{
-			cmdType: "REMOTE",
-		}
-		var reply []byte
-		command := &RemoteCommand{}
-		command.Data.Remote = remote
-		b, ok := auth.Remotes[remote]
-
-		//沒有這個remote 返回錯誤訊息不斷線
-		if !ok || !b {
-			command.Event = RemoteReplyError
-			command.SocketId = socketId
-			reply, err = json.Marshal(command)
-			if err != nil {
-				return
-			}
-			msg.msg = reply
-			return
-		}
-		wp := WorkerPayload{
-			UserId:   auth.UserId,
-			Data:     p,
-			Uid:      uid,
-			SocketId: socketId,
-			AppKey:   auth.AppKey,
-		}
-		d, err := json.Marshal(wp)
-		conn := pool.Get()
-		defer conn.Close()
-		_, err = conn.Do("RPUSH", auth.AppKey+"@"+remote, d)
-		if err != nil {
-			return
-		}
-		command.Event = RemoteReplySucceeded
-		command.SocketId = socketId
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		if debug {
-			msg.msg = reply
-		}
-
-		return
-	}
-
-}
-func UnSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-	channel, err := jsonparser.GetString(data, "channel")
-	if err != nil {
-		return
-	}
-	exist := false
-	for _, ch := range auth.Channels {
-		//新增萬用字元  如果找到這個 任何頻道皆可訂閱
-		if ch == "*" {
-			exist = true
-			break
-		}
-		ech := regexp.QuoteMeta(ch)
-		rch := strings.Replace(ech, `\*`, ".+", -1)
-		r := regexp.MustCompile("^" + rch + "$")
-
-		if r.MatchString(channel) {
-			exist = true
-			break
-		}
-	}
-	msg = &commandResponse{
-		cmdType: "UNSUB",
-	}
-	command := &ChannelCommand{}
-	var reply []byte
-	//反訂閱處理
-	if exist {
-		msg.data = channel
-		command.Event = UnSubscribeReplySucceeded
-		command.SocketId = socketId
-		command.Data.Channel = channel
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		msg.msg = reply
-	} else {
-		msg.data = channel
-
-		//TODO 需重構 先不讓他進入訂閱模式
-		msg.cmdType = ""
-		command.Event = UnSubscribeReplyError
-		command.SocketId = socketId
-		command.Data.Channel = channel
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		msg.msg = reply
-	}
 	return
 }
 
