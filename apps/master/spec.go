@@ -2,7 +2,6 @@ package main
 
 import (
 	jwt "github.com/dgrijalva/jwt-go"
-	"gusher/internal"
 )
 
 const (
@@ -75,7 +74,7 @@ type ChannelData struct {
 }
 
 type JwtPack struct {
-	Gusher internal.Auth `json:"gusher"`
+	Gusher redisocket.Auth `json:"gusher"`
 	jwt.StandardClaims
 }
 

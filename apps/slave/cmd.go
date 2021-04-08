@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gusher/internal"
+	"github.com/bensema/redisocket"
 	"html/template"
 	"os"
 	"os/signal"
@@ -78,7 +78,7 @@ func slave(c *cli.Context) {
 		logger.Fatal(err)
 	}
 
-	rsHub := internal.NewHub(rpool, logger.GetLogger(), c.Bool("debug"))
+	rsHub := redisocket.NewHub(rpool, logger.GetLogger(), c.Bool("debug"))
 	rsHub.Config.MaxMessageSize = int64(sc.MaxMessage)
 	rsHub.Config.ScanInterval = sc.ScanInterval
 	rsHub.Config.Upgrader.ReadBufferSize = sc.ReadBuffer

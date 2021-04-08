@@ -2,15 +2,14 @@ package main
 
 import (
 	"crypto/rsa"
-	"encoding/json"
-	"gusher/internal"
+	"github.com/bensema/redisocket"
 	"net/http"
 	"regexp"
 
 	"github.com/gorilla/mux"
 )
 
-func GetAllChannelCount(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetAllChannelCount(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -37,7 +36,7 @@ func GetAllChannelCount(rsender *internal.Sender) func(w http.ResponseWriter, r 
 		return
 	}
 }
-func GetAllChannel(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetAllChannel(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -59,7 +58,7 @@ func GetAllChannel(rsender *internal.Sender) func(w http.ResponseWriter, r *http
 		return
 	}
 }
-func GetOnlineCountByChannel(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetOnlineCountByChannel(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -86,7 +85,7 @@ func GetOnlineCountByChannel(rsender *internal.Sender) func(w http.ResponseWrite
 		return
 	}
 }
-func GetOnlineByChannel(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetOnlineByChannel(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -108,7 +107,7 @@ func GetOnlineByChannel(rsender *internal.Sender) func(w http.ResponseWriter, r 
 		return
 	}
 }
-func GetOnlineCount(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetOnlineCount(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -135,7 +134,7 @@ func GetOnlineCount(rsender *internal.Sender) func(w http.ResponseWriter, r *htt
 		return
 	}
 }
-func GetOnline(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func GetOnline(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
@@ -157,7 +156,7 @@ func GetOnline(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Req
 		return
 	}
 }
-func PushToSocket(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func PushToSocket(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -191,7 +190,7 @@ func PushToSocket(rsender *internal.Sender) func(w http.ResponseWriter, r *http.
 		return
 	}
 }
-func AddUserChannels(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func AddUserChannels(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -239,7 +238,7 @@ func AddUserChannels(rsender *internal.Sender) func(w http.ResponseWriter, r *ht
 		return
 	}
 }
-func ReloadUserChannels(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func ReloadUserChannels(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -290,7 +289,7 @@ func ReloadUserChannels(rsender *internal.Sender) func(w http.ResponseWriter, r 
 		return
 	}
 }
-func PushToUser(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func PushToUser(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -325,7 +324,7 @@ func PushToUser(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func PushBatchMessage(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func PushBatchMessage(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -352,7 +351,7 @@ func PushBatchMessage(rsender *internal.Sender) func(w http.ResponseWriter, r *h
 			return
 		}
 		l := len(batchData)
-		bd := make([]internal.BatchData, l)
+		bd := make([]redisocket.BatchData, l)
 		for _, data := range batchData {
 			push := struct {
 				Channel string      `json:"channel"`
@@ -368,7 +367,7 @@ func PushBatchMessage(rsender *internal.Sender) func(w http.ResponseWriter, r *h
 				logger.GetRequestEntry(r).Warn(err)
 				continue
 			}
-			b := internal.BatchData{
+			b := redisocket.BatchData{
 				Data:  d,
 				Event: data.Channel,
 			}
@@ -396,7 +395,7 @@ func PushBatchMessage(rsender *internal.Sender) func(w http.ResponseWriter, r *h
 	}
 }
 
-func PushMessageByPattern(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func PushMessageByPattern(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]
@@ -478,7 +477,7 @@ func PushMessageByPattern(rsender *internal.Sender) func(w http.ResponseWriter, 
 		return
 	}
 }
-func PushMessage(rsender *internal.Sender) func(w http.ResponseWriter, r *http.Request) {
+func PushMessage(rsender *redisocket.Sender) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		params := mux.Vars(r)
 		app_key := params["app_key"]

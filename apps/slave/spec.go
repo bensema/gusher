@@ -1,19 +1,21 @@
 package main
 
 import (
+	"github.com/bensema/redisocket"
 	jwt "github.com/dgrijalva/jwt-go"
-	"gusher/internal"
 )
 
 const (
-	ConnectionEstablished   = "pusher:connection_established"
-	PingEvent               = "pusher:ping"
-	PongReplySucceeded      = "pusher:pong"
-	Err                     = "pusher:err"
-	SubscribeEvent          = "pusher:subscribe"
-	SubscribeReplySucceeded = "pusher:subscription_succeeded"
-	SubscribeReplyError     = "pusher:subscription_error"
-	UnSubscribeEvent        = "pusher:unsubscribe"
+	ConnectionEstablished     = "pusher:connection_established"
+	PingEvent                 = "pusher:ping"
+	PongReplySucceeded        = "pusher:pong"
+	Err                       = "pusher:err"
+	SubscribeEvent            = "pusher:subscribe"
+	SubscribeReplySucceeded   = "pusher:subscription_succeeded"
+	SubscribeReplyError       = "pusher:subscription_error"
+	UnSubscribeEvent          = "pusher:unsubscribe"
+	UnSubscribeReplySucceeded = "pusher:unsubscribe_succeeded"
+	UnSubscribeReplyError     = "pusher:unsubscribe_error"
 
 	MultiSubscribeEvent = "pusher:multi_subscribe"
 
@@ -28,8 +30,6 @@ const (
 	RemoteReplyError             = "pusher:remote_error"
 	MultiSubscribeReplySucceeded = "pusher:multi_subscribe_succeeded"
 	MultiSubscribeReplyError     = "pusher:subscription_error"
-	UnSubscribeReplySucceeded    = "pusher:unsubscribe_succeeded"
-	UnSubscribeReplyError        = "pusher:unsubscribe_error"
 )
 
 type BatchData struct {
@@ -85,7 +85,7 @@ type ConnectionCommand struct {
 }
 
 type JwtPack struct {
-	Gusher internal.Auth `json:"gusher"`
+	Gusher redisocket.Auth `json:"gusher"`
 	jwt.StandardClaims
 }
 

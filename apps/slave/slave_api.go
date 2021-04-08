@@ -2,26 +2,25 @@ package main
 
 import (
 	"errors"
-	"fmt"
+	"github.com/bensema/redisocket"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
-	"gusher/internal"
 	"regexp"
 )
 
-var DefaultSubHandler = func(channel string, p *internal.Payload) (err error) {
+var DefaultSubHandler = func(channel string, p *redisocket.Payload) (err error) {
 	return nil
 }
 
 type commandResponse struct {
 	cmdType   string
-	handler   func(string, *internal.Payload) (err error)
+	handler   func(string, *redisocket.Payload) (err error)
 	msg       []byte
 	data      string   // channel 名
 	multiData []string //multi sub use
 }
 
-func WsConnect(c *gin.Context, rHub *internal.Hub) {
+func WsConnect(c *gin.Context, rHub *redisocket.Hub) {
 
 	appKey := c.Param("app_key")
 	if appKey == "" {
@@ -141,7 +140,7 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 	}
 	command := &ChannelCommand{}
 	//exist := false
-	channelOk := false
+	channelNameOk := false
 	var reply []byte
 	// Channel names should only include lower and uppercase letters, numbers and the following punctuation _ - = @ , . ;
 	// As an example this is a valid channel name:
@@ -150,10 +149,9 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 	r := regexp.MustCompile("^[\\w-=,.;@]+$")
 	if r.MatchString(channel) {
 		//exist = true
-		channelOk = true
+		channelNameOk = true
 	}
-	fmt.Println("channelOk:", channelOk)
-	if channelOk {
+	if channelNameOk {
 		switch channelType(channel) {
 		case PublicChannel:
 			msg.data = channel
