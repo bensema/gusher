@@ -12,12 +12,13 @@ import (
 
 //Client gorilla websocket wrap struct
 type Client struct {
-	prefix string
-	sid    string
-	uid    string
-	ws     *websocket.Conn
-	events map[string]EventHandler
-	send   chan *Payload
+	activityTime time.Time
+	prefix       string
+	sid          string
+	uid          string
+	ws           *websocket.Conn
+	events       map[string]EventHandler
+	send         chan *Payload
 	*sync.RWMutex
 	re   ReceiveMsgHandler
 	hub  *Hub
@@ -58,6 +59,10 @@ func (c *Client) GetAuth() Auth {
 	c.RLock()
 	defer c.RUnlock()
 	return *c.auth
+}
+
+func (c *Client) ActivityTime() {
+	c.activityTime = time.Now()
 }
 
 //On event.  client on event
@@ -187,15 +192,17 @@ func (c *Client) Close() {
 
 func (c *Client) writePump() {
 	t := time.NewTicker(c.hub.Config.PingPeriod)
+	aTime := time.NewTicker(c.hub.Config.ActivityTime)
 	defer func() {
 		t.Stop()
+		aTime.Stop()
 		c.Close()
 	}()
 	for {
 		select {
 		case msg, ok := <-c.send:
 			if !ok {
-				c.hub.logger("user %s disconnect  err: channel receive error", c.uid)
+				c.hub.logger("socket id  %s disconnect  err: channel receive error", c.sid)
 				return
 			}
 
@@ -206,11 +213,11 @@ func (c *Client) writePump() {
 				if h != nil {
 					err := h(msg.Event, msg)
 					if err != nil {
-						c.hub.logger("user %s disconnect  err: event callback execute error", c.uid)
+						c.hub.logger("socket id  %s disconnect  err: event callback execute error", c.sid)
 						return
 					}
 				} else {
-					c.hub.logger("user %s disconnect  err: no event callback", c.uid)
+					c.hub.logger("socket id  %s disconnect  err: no event callback", c.sid)
 					return
 				}
 			}
@@ -218,12 +225,12 @@ func (c *Client) writePump() {
 			if msg.IsPrepare {
 
 				if err := c.writePreparedMessage(msg.PrepareMessage); err != nil {
-					c.hub.logger("user %s disconnect  err: write prepared message  %s", c.uid, err)
+					c.hub.logger("socket id  %s disconnect  err: write prepared message  %s", c.sid, err)
 					return
 				}
 			} else {
 				if err := c.write(websocket.TextMessage, msg.Data); err != nil {
-					c.hub.logger("user %s disconnect  err: write normal message  %s", c.uid, err)
+					c.hub.logger("socket id  %s disconnect  err: write normal message  %s", c.sid, err)
 					return
 				}
 
@@ -231,12 +238,17 @@ func (c *Client) writePump() {
 
 		case <-t.C:
 			if err := c.write(websocket.PingMessage, []byte{}); err != nil {
-				c.hub.logger("user %s disconnect  err: ping message  %s", c.uid, err)
+				c.hub.logger("socket id  %s disconnect  err: ping message  %s", c.sid, err)
 				return
 			}
 			//超過時間 都沒有事件訂閱 就斷線處理
-			if len(c.events) == 0 {
-				c.hub.logger("user %s disconnect  err: timeout to subscribe", c.uid)
+			//if len(c.events) == 0 {
+			//	c.hub.logger("user %s disconnect  err: timeout to subscribe", c.uid)
+			//	return
+			//}
+		case <-aTime.C:
+			if time.Now().Sub(c.activityTime) > c.hub.Config.ActivityTime {
+				c.hub.logger("socket id %s disconnect  err: timeout to activity time", c.sid)
 				return
 			}
 

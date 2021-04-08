@@ -3,13 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
 	"gusher/internal"
 	"regexp"
-	"strings"
-	"time"
-
-	"github.com/buger/jsonparser"
 )
 
 var DefaultSubHandler = func(channel string, p *internal.Payload) (err error) {
@@ -39,6 +36,7 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 		return
 	}
 	defer s.Close()
+
 	d := &ConnectionCommand{}
 	d.Event = ConnectionEstablished
 	d.Data = map[string]interface{}{
@@ -47,6 +45,7 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 	}
 	_d, _ := json.Marshal(d)
 	s.Send(_d)
+
 	logger.WithField("socket_id", s.SocketId()).Info("connect")
 	s.Listen(func(data []byte) (b []byte, err error) {
 		h, err := CommandRouter(data)
@@ -63,7 +62,7 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 		if err != nil {
 			debug = false
 		}
-		res, err := h(appKey, s.GetAuth(), d, s.SocketId(), debug)
+		res, err := h(d, s.SocketId(), debug)
 		if err != nil {
 			logger.WithField("socket_id", s.SocketId()).WithError(err).Info("handler error")
 			return
@@ -71,13 +70,12 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 		switch res.cmdType {
 		case "SUB":
 			s.On(res.data, res.handler)
-		case "MULTISUB":
-			for _, v := range res.multiData {
-				s.On(v, res.handler)
-			}
+			s.ActivityTime()
 		case "UNSUB":
 			s.Off(res.data)
-
+			s.ActivityTime()
+		case "PING":
+			s.ActivityTime()
 		}
 		return res.msg, nil
 	})
@@ -86,30 +84,22 @@ func WsConnect(c *gin.Context, rHub *internal.Hub) {
 
 }
 
-func UnSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
+func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	channel, err := jsonparser.GetString(data, "channel")
 	if err != nil {
 		return
 	}
 	exist := false
-	for _, ch := range auth.Channels {
-		//新增萬用字元  如果找到這個 任何頻道皆可訂閱
-		if ch == "*" {
-			exist = true
-			break
-		}
-		ech := regexp.QuoteMeta(ch)
-		rch := strings.Replace(ech, `\*`, ".+", -1)
-		r := regexp.MustCompile("^" + rch + "$")
 
-		if r.MatchString(channel) {
-			exist = true
-			break
-		}
-	}
 	msg = &commandResponse{
 		cmdType: "UNSUB",
 	}
+
+	r := regexp.MustCompile("^[\\w-=,.;@]+$")
+	if r.MatchString(channel) {
+		exist = true
+	}
+
 	command := &ChannelCommand{}
 	var reply []byte
 	//反訂閱處理
@@ -140,8 +130,7 @@ func UnSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId
 	return
 }
 
-func SubscribeCommand(appKey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-	fmt.Println(string(data))
+func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	channel, err := jsonparser.GetString(data, "channel")
 	if err != nil {
 		return
@@ -196,84 +185,14 @@ func SubscribeCommand(appKey string, auth internal.Auth, data []byte, socketId s
 	return
 }
 
-func MultiSubscribeCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
-
-	multiChannel := make([]string, 0)
-	_, err = jsonparser.ArrayEach(data, func(v []byte, dataType jsonparser.ValueType, offset int, err error) {
-		if err != nil {
-			return
-		}
-		multiChannel = append(multiChannel, string(v))
-
-	}, "multi_channel")
-	msg = &commandResponse{
-		handler: DefaultSubHandler,
-		cmdType: "MULTISUB",
-	}
-	command := &ChannelCommand{}
-	var exist bool
-	for _, ch := range auth.Channels {
-		//新增萬用字元  如果找到這個 任何頻道皆可訂閱
-		if ch == "*" {
-			exist = true
-			break
-		}
-	}
-	subChannels := make([]string, 0)
-	if exist {
-		subChannels = multiChannel
-	} else {
-		isMatch := true
-		for _, ch := range multiChannel {
-			if !InArray(ch, auth.Channels) {
-				isMatch = false
-				break
-			}
-		}
-		if isMatch {
-			subChannels = multiChannel
-		}
-	}
-	var reply []byte
-	if len(subChannels) > 0 {
-		msg.multiData = subChannels
-		command.Event = MultiSubscribeReplySucceeded
-		command.SocketId = socketId
-		command.Data.Channel = subChannels
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		msg.msg = reply
-	} else {
-
-		//TODO 需重構 不讓他進入訂閱模式
-		msg.cmdType = ""
-		command.Event = MultiSubscribeReplyError
-		command.SocketId = socketId
-		command.Data.Channel = multiChannel
-		reply, err = json.Marshal(command)
-		if err != nil {
-			return
-		}
-		msg.msg = reply
-
-	}
-
-	return
-}
-
-func PingPongCommand(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
+func PingPongCommand(data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	msg = &commandResponse{
 		handler: DefaultSubHandler,
 		cmdType: "PING",
 	}
-
 	command := &PongResponse{}
-	command.Event = QueryChannelReplySucceeded
-	command.SocketId = socketId
-	command.Data = data
-	command.Time = time.Now().Unix()
+	command.Event = PongReplySucceeded
+	command.Data = map[string]interface{}{}
 
 	reply, err := json.Marshal(command)
 	if err != nil {
@@ -283,7 +202,7 @@ func PingPongCommand(appkey string, auth internal.Auth, data []byte, socketId st
 	return
 }
 
-func CommandRouter(data []byte) (fn func(appkey string, auth internal.Auth, data []byte, socketId string, debug bool) (msg *commandResponse, err error), err error) {
+func CommandRouter(data []byte) (fn func(data []byte, socketId string, debug bool) (msg *commandResponse, err error), err error) {
 
 	val, err := jsonparser.GetString(data, "event")
 	if err != nil {
@@ -292,8 +211,6 @@ func CommandRouter(data []byte) (fn func(appkey string, auth internal.Auth, data
 	switch val {
 	case SubscribeEvent:
 		return SubscribeCommand, nil
-	case MultiSubscribeEvent:
-		return MultiSubscribeCommand, nil
 	case UnSubscribeEvent:
 		return UnSubscribeCommand, nil
 	case PingEvent:

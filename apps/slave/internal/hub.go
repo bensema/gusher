@@ -40,6 +40,7 @@ type WebsocketOptional struct {
 	WriteWait      time.Duration
 	PongWait       time.Duration
 	PingPeriod     time.Duration
+	ActivityTime   time.Duration
 	MaxMessageSize int64
 	Upgrader       websocket.Upgrader
 }
@@ -67,6 +68,7 @@ var (
 		WriteWait:      10 * time.Second,
 		PongWait:       60 * time.Second,
 		PingPeriod:     (60 * time.Second * 9) / 10,
+		ActivityTime:   120 * time.Second,
 		MaxMessageSize: 512,
 		Upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
@@ -286,6 +288,7 @@ func (e *Hub) Upgrade(w http.ResponseWriter, r *http.Request, responseHeader htt
 		events:  make(map[string]EventHandler),
 		auth:    auth,
 	}
+
 	e.join(c)
 	return
 }

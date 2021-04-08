@@ -6,26 +6,28 @@ import (
 )
 
 const (
-	ConnectionEstablished = "pusher:connection_established"
-	SubscribeEvent        = "pusher:subscribe"
-	MultiSubscribeEvent   = "pusher:multi_subscribe"
-	UnSubscribeEvent      = "pusher:unsubscribe"
+	ConnectionEstablished   = "pusher:connection_established"
+	PingEvent               = "pusher:ping"
+	PongReplySucceeded      = "pusher:pong"
+	Err                     = "pusher:err"
+	SubscribeEvent          = "pusher:subscribe"
+	SubscribeReplySucceeded = "pusher:subscription_succeeded"
+	SubscribeReplyError     = "pusher:subscription_error"
+	UnSubscribeEvent        = "pusher:unsubscribe"
 
-	PingEvent                    = "pusher:ping"
+	MultiSubscribeEvent = "pusher:multi_subscribe"
+
 	QueryChannelEvent            = "pusher:querychannel"
 	QueryChannelReplySucceeded   = "pusher:querychannel_succeeded"
 	QueryChannelReplyError       = "pusher:querychannel_error"
 	AddChannelEvent              = "pusher:addchannel"
 	ReloadChannelEvent           = "pusher:reloadchannel"
-	PongReplySucceeded           = "pusher:pong_succeeded"
 	RemoteEvent                  = "pusher:remote"
 	LoginEvent                   = "pusher:login"
 	RemoteReplySucceeded         = "pusher:remote_succeeded"
 	RemoteReplyError             = "pusher:remote_error"
-	SubscribeReplySucceeded      = "pusher:subscribe_succeeded"
-	SubscribeReplyError          = "pusher:subscribe_error"
 	MultiSubscribeReplySucceeded = "pusher:multi_subscribe_succeeded"
-	MultiSubscribeReplyError     = "pusher:multi_subscribe_error"
+	MultiSubscribeReplyError     = "pusher:subscription_error"
 	UnSubscribeReplySucceeded    = "pusher:unsubscribe_succeeded"
 	UnSubscribeReplyError        = "pusher:unsubscribe_error"
 )
@@ -59,10 +61,10 @@ type PingCommand struct {
 	Data interface{} `json:"data"`
 }
 type PongResponse struct {
-	InternalCommand
-	Data interface{} `json:"data"`
-	Time int64       `json:"time"`
+	Event string      `json:"event"`
+	Data  interface{} `json:"data"`
 }
+
 type QueryChannelResponse struct {
 	InternalCommand
 	Data interface{} `json:"data"`
