@@ -29,7 +29,7 @@ func apiEvents(c *gin.Context) {
 		return
 	}
 	event := m.Name
-	data, _ := json.MarshalToString(m.Data)
+	data := m.Data
 	appKey := c.Param("app_key")
 	if appKey == "" || event == "" {
 		c.JSON(http.StatusBadRequest, gin.H{})
@@ -81,12 +81,12 @@ func apiBatchEvents(c *gin.Context) {
 	}
 	appKey := c.Param("app_key")
 	for _, e := range m.Batch {
-		d, err := json.MarshalToString(e.Data)
+		d, err := json.Marshal(e)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{})
 			return
 		}
-		_, err = rsender.Push(listenChannelPrefix, appKey, e.Channel, []byte(d))
+		_, err = rsender.Push(listenChannelPrefix, appKey, e.Channel, d)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{})
 			return

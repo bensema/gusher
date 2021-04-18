@@ -33,10 +33,10 @@ const (
 )
 
 type BaseData struct {
-	Event    string `json:"event"`
-	Channel  string `json:"channel"`
-	Data     string `json:"data"`
-	SocketId string `json:"socket_id"`
+	Event    string      `json:"event"`
+	Channel  string      `json:"channel"`
+	Data     interface{} `json:"data"`
+	SocketId string      `json:"socket_id"`
 }
 
 type BatchData struct {

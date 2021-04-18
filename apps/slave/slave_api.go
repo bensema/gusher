@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"github.com/bensema/redisocket"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
@@ -39,16 +38,15 @@ func WsConnect(c *gin.Context, rHub *redisocket.Hub) {
 
 	d := &BaseData{}
 	d.Event = ConnectionEstablished
-	d.Data, _ = json.MarshalToString(map[string]interface{}{
-		"socket_id":        s.SocketId(),
+	d.Data = map[string]interface{}{
 		"activity_timeout": 120,
-	})
+	}
+	d.SocketId = s.SocketId()
 	_d, _ := json.Marshal(d)
 	s.Send(_d)
 
 	logger.WithField("socket_id", s.SocketId()).Info("connect")
 	s.Listen(func(data []byte) (b []byte, err error) {
-		fmt.Println("data:", string(data))
 		h, err := CommandRouter(data)
 		if err != nil {
 			logger.WithField("socket_id", s.SocketId()).WithError(err).Info("router error")
@@ -108,9 +106,9 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 		msg.data = channel
 		command.Event = UnSubscribeReplySucceeded
 		command.SocketId = socketId
-		command.Data, _ = json.MarshalToString(map[string]string{
+		command.Data = map[string]string{
 			"channel": channel,
-		})
+		}
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -123,9 +121,9 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 		msg.cmdType = ""
 		command.Event = UnSubscribeReplyError
 		command.SocketId = socketId
-		command.Data, _ = json.MarshalToString(map[string]string{
+		command.Data = map[string]string{
 			"channel": channel,
-		})
+		}
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -138,8 +136,6 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	channel, err := jsonparser.GetString(data, "channel")
 	if err != nil {
-		logger.Error("SubscribeCommand jsonparser err:", err)
-
 		return
 	}
 	msg = &commandResponse{
@@ -165,9 +161,9 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 			msg.data = channel
 			command.SocketId = socketId
 			command.Event = SubscribeReplySucceeded
-			command.Data, _ = json.MarshalToString(map[string]string{
+			command.Data = map[string]string{
 				"channel": channel,
-			})
+			}
 			reply, err = json.Marshal(command)
 			if err != nil {
 				return
@@ -182,9 +178,9 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 		msg.cmdType = ""
 		command.SocketId = socketId
 		command.Event = SubscribeReplyError
-		command.Data, _ = json.MarshalToString(map[string]string{
+		command.Data = map[string]string{
 			"channel": channel,
-		})
+		}
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -202,7 +198,7 @@ func PingPongCommand(data []byte, socketId string, debug bool) (msg *commandResp
 	}
 	command := &BaseData{}
 	command.Event = PongReplySucceeded
-	command.Data = "{}"
+	command.Data = map[string]interface{}{}
 
 	reply, err := json.Marshal(command)
 	if err != nil {
@@ -216,7 +212,6 @@ func CommandRouter(data []byte) (fn func(data []byte, socketId string, debug boo
 
 	val, err := jsonparser.GetString(data, "event")
 	if err != nil {
-		logger.Error("CommandRouter jsonparser err:", err)
 		return
 	}
 	switch val {
