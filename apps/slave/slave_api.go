@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/bensema/redisocket"
 	"github.com/buger/jsonparser"
 	"github.com/gin-gonic/gin"
@@ -17,7 +18,7 @@ type commandResponse struct {
 	handler   func(string, *redisocket.Payload) (err error)
 	msg       []byte
 	data      string   // channel 名
-	multiData []string //multi sub use
+	multiData []string // multi sub use
 }
 
 func WsConnect(c *gin.Context, rHub *redisocket.Hub) {
@@ -36,17 +37,18 @@ func WsConnect(c *gin.Context, rHub *redisocket.Hub) {
 	}
 	defer s.Close()
 
-	d := &ConnectionCommand{}
+	d := &BaseData{}
 	d.Event = ConnectionEstablished
-	d.Data = map[string]interface{}{
+	d.Data, _ = json.MarshalToString(map[string]interface{}{
 		"socket_id":        s.SocketId(),
 		"activity_timeout": 120,
-	}
+	})
 	_d, _ := json.Marshal(d)
 	s.Send(_d)
 
 	logger.WithField("socket_id", s.SocketId()).Info("connect")
 	s.Listen(func(data []byte) (b []byte, err error) {
+		fmt.Println("data:", string(data))
 		h, err := CommandRouter(data)
 		if err != nil {
 			logger.WithField("socket_id", s.SocketId()).WithError(err).Info("router error")
@@ -99,14 +101,16 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 		exist = true
 	}
 
-	command := &ChannelCommand{}
+	command := &BaseData{}
 	var reply []byte
 	//反訂閱處理
 	if exist {
 		msg.data = channel
 		command.Event = UnSubscribeReplySucceeded
 		command.SocketId = socketId
-		command.Data.Channel = channel
+		command.Data, _ = json.MarshalToString(map[string]string{
+			"channel": channel,
+		})
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -119,7 +123,9 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 		msg.cmdType = ""
 		command.Event = UnSubscribeReplyError
 		command.SocketId = socketId
-		command.Data.Channel = channel
+		command.Data, _ = json.MarshalToString(map[string]string{
+			"channel": channel,
+		})
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -132,13 +138,15 @@ func UnSubscribeCommand(data []byte, socketId string, debug bool) (msg *commandR
 func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandResponse, err error) {
 	channel, err := jsonparser.GetString(data, "channel")
 	if err != nil {
+		logger.Error("SubscribeCommand jsonparser err:", err)
+
 		return
 	}
 	msg = &commandResponse{
 		handler: DefaultSubHandler,
 		cmdType: "SUB",
 	}
-	command := &ChannelCommand{}
+	command := &BaseData{}
 	//exist := false
 	channelNameOk := false
 	var reply []byte
@@ -157,7 +165,9 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 			msg.data = channel
 			command.SocketId = socketId
 			command.Event = SubscribeReplySucceeded
-			command.Data.Channel = channel
+			command.Data, _ = json.MarshalToString(map[string]string{
+				"channel": channel,
+			})
 			reply, err = json.Marshal(command)
 			if err != nil {
 				return
@@ -172,7 +182,9 @@ func SubscribeCommand(data []byte, socketId string, debug bool) (msg *commandRes
 		msg.cmdType = ""
 		command.SocketId = socketId
 		command.Event = SubscribeReplyError
-		command.Data.Channel = channel
+		command.Data, _ = json.MarshalToString(map[string]string{
+			"channel": channel,
+		})
 		reply, err = json.Marshal(command)
 		if err != nil {
 			return
@@ -188,9 +200,9 @@ func PingPongCommand(data []byte, socketId string, debug bool) (msg *commandResp
 		handler: DefaultSubHandler,
 		cmdType: "PING",
 	}
-	command := &PongResponse{}
+	command := &BaseData{}
 	command.Event = PongReplySucceeded
-	command.Data = map[string]interface{}{}
+	command.Data = "{}"
 
 	reply, err := json.Marshal(command)
 	if err != nil {
@@ -204,6 +216,7 @@ func CommandRouter(data []byte) (fn func(data []byte, socketId string, debug boo
 
 	val, err := jsonparser.GetString(data, "event")
 	if err != nil {
+		logger.Error("CommandRouter jsonparser err:", err)
 		return
 	}
 	switch val {

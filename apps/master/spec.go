@@ -70,6 +70,7 @@ type ChannelCommand struct {
 	InternalCommand
 	Data ChannelData `json:"data"`
 }
+
 type ChannelData struct {
 	Channel interface{} `json:"channel"`
 }

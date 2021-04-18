@@ -32,6 +32,13 @@ const (
 	MultiSubscribeReplyError     = "pusher:subscription_error"
 )
 
+type BaseData struct {
+	Event    string `json:"event"`
+	Channel  string `json:"channel"`
+	Data     string `json:"data"`
+	SocketId string `json:"socket_id"`
+}
+
 type BatchData struct {
 	Channel string      `json:"channel"`
 	Event   string      `json:"event"`
@@ -60,6 +67,7 @@ type PingCommand struct {
 	InternalCommand
 	Data interface{} `json:"data"`
 }
+
 type PongResponse struct {
 	Event string      `json:"event"`
 	Data  interface{} `json:"data"`
